@@ -74,6 +74,29 @@
             </table>
         </div>
     </div>
+
+    <!-- Recent block rewards -->
+    <h4 class="yourStats push-up-20"><i class="fa fa-pie-chart"></i>&nbsp; <span tkey="recentRewards">Recent Block Rewards</span></h4>
+    <div class="yourStats card">
+        <div id="recentBlocks" class="table-responsive">
+            <table class="table table-hover table-striped">
+                <thead>
+                <tr>
+                    <th class="col1"><span tkey="height">Height</span></th>
+                    <th class="col2"><span tkey="timeFound">Time Found</span></th>
+                    <th class="col3"><span tkey="difficulty">Difficulty</span></th>
+                    <th class="col4"><span tkey="effort">Effort</span></th>
+                    <th class="col5"><span tkey="blockReward">Block Reward</span></th>
+                    <th class="col6"><span tkey="reward">Reward</span></th>
+                    <th class="col7"><span tkey="status">Status</span></th>
+                </tr>
+                </thead>
+                <tbody id="recentBlocks_rows">
+
+                </tbody>
+            </table>
+        </div>
+    </div>
     
     <!-- Payments -->
     <h4 class="yourStats push-up-20"><i class="fa fa-money"></i>&nbsp; <span tkey="paymentsHistory">Payments History</span></h4>
@@ -210,6 +233,10 @@ function fetchAddressStats(longpoll){
             if (data.workers && data.workers.length > 0) {
                 renderWorkers(data.workers);
                 $('.yourWorkers').show();
+            }
+
+            if ((data.unlocked && data.unlocked.length > 0) || (data.unconfirmed && data.unconfirmed.length > 0)) {
+                renderRecentBlocks(data.unlocked, data.unconfirmed);
             }
 	    
             $('.yourStats').show();
@@ -479,6 +506,102 @@ function renderWorkers(workersData){
     if (!have_avg_hr) $('#workersReport .avghr').hide();
     else $('#workersReport .avghr').show();
 }
+
+function updateRecentBlockCells(row, block, status) {
+
+    var maturity;
+    if (status == 'orphaned') maturity = "<i class='fa fa-times'></i>";
+    else if (status == 'unlocked') maturity = "<i class='fa fa-unlock-alt'></i>";
+    else {
+        var toGo = lastStats.config.depth - (lastStats.network.height - block.height) + 1;
+        if (toGo > 1) maturity = toGo + ' to go';
+        else if(toGo == 1) maturity = "<i class='fa fa-spinner fa-spin'></i>";
+        else maturity = "<i class='fa fa-unlock-alt'></i>";
+    }
+
+    if (!row.children('td').length) {
+        row.html(
+            '<td class="col1"><a target="_blank" href="' + getBlockchainUrl(block.hash) + '">' +  block.height + '</a></td>' +
+            '<td class="col2">' + formatDate(block.time) + '</td>' +
+            '<td class="col3">' + block.difficulty + '</td>' +
+            '<td class="col4">' + formatLuck(block.difficulty, block.totalShares) + '</td>' +
+            '<td class="col5">' + getReadableCoins(block.blockReward) + '</td>' +
+            '<td class="col6"><span class="reward">' + getReadableCoins(block.reward) + '</span> ' +
+            '(= <a href="javascript:alert(\'Your block ' + block.height + ' round contribution:\\n\\n' +
+                (block.totalScore == block.totalShares ? '' :
+                 (block.score  / block.totalScore  * 100).toPrecision(3) + '% (' + Math.round(block.score)  + ' / ' + Math.round(block.totalScore)  + ') score-weighted shares\\n') +
+                (block.shares / block.totalShares * 100).toPrecision(3) + '% (' + Math.round(block.shares) + ' / ' + Math.round(block.totalShares) + ') shares' +
+                '\')">' + (block.score / block.totalScore * 100).toPrecision(3) + '%</a>)</td>' +
+            '<td class="col7 ' + status + '" title="' + status + '">' + maturity + '</td>'
+        );
+    }
+    else {
+        var col5 = row.children('td.col5'), col6reward = row.find('td.col6 span.reward'), col7 = row.children('td.col7');
+        var want5 = getReadableCoins(block.blockReward);
+        if (want5 != col5.text()) col5.text(want5);
+        var want6 = getReadableCoins(block.reward);
+        if (want6 != col6reward.text()) col6reward.text(want6);
+        want7class = 'col7 ' + status;
+        if (col7.attr('class') != want7class) col7.attr('class', want7class);
+        if (col7.html() != maturity) col7.html(maturity);
+    }
+}
+
+// Render recent block rewards
+function renderRecentBlocks(recentBlocks, unconfirmedBlocks) {
+    var $recentRows = $('#recentBlocks_rows');
+
+    var firstExisting = $recentRows.find('tr:first-child');
+
+    var count = 0;
+    if (unconfirmedBlocks) {
+        for (var i in unconfirmedBlocks) {
+            if (++count > 20) break;
+            var b = unconfirmedBlocks[i];
+
+            var row = $recentRows.find('tr#recent-block-' + b.hash)
+            if (row.length == 0) {
+                row = $('<tr></tr>');
+                row.attr("id", "recent-block-" + b.hash);
+                if (firstExisting.length) row.insertBefore(firstExisting);
+                else $recentRows.append(row);
+            }
+
+            updateRecentBlockCells(row, b, 'locked');
+        }
+    }
+
+    if (recentBlocks) {
+        for (var i = 0; i < recentBlocks.length; i += 2) {
+            if (++count > 20) break;
+
+            var b = recentBlocks[i].split(':');
+            var row = $recentRows.find('tr#recent-block-' + b[1])
+            if (row.length == 0) {
+                row = $('<tr></tr>');
+                row.attr("id", "recent-block-" + b[1]);
+                if (firstExisting.length) row.insertBefore(firstExisting);
+                else $recentRows.append(row);
+            }
+
+            updateRecentBlockCells(row, {
+                time:        parseFloat(recentBlocks[i+1]),
+                height:      parseFloat(b[0]),
+                hash:        b[1],
+                difficulty:  parseFloat(b[2]),
+                blockReward: b[3] == 'orphan' ? 0 : parseFloat(b[3]),
+                reward:      b[4] == 'orphan' ? 0 : parseFloat(b[4]),
+                shares:      parseFloat(b[5]),
+                totalShares: parseFloat(b[6]),
+                score:       parseFloat(b[b.length > 7 ? 7 : 5]),
+                totalScore:  parseFloat(b[b.length > 8 ? 8 : 6])
+            }, b[4] == 'orphan' ? 'orphan' : 'unlocked');
+        }
+    }
+
+    $recentRows.children('tr').slice(20).remove();
+}
+
 
 /**
  * Payments report
