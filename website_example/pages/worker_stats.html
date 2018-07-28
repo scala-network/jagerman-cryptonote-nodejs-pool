@@ -38,6 +38,7 @@
             <div class="col-sm-6 stats push-up-10">
                 <div><i class="fa fa-bank"></i> <span tkey="pendingBalance">Pending Balance</span>: <span id="yourPendingBalance"></span></div>
                 <div><i class="fa fa-money"></i> <span tkey="totalPaid">Total Paid</span>: <span id="yourPaid"></span></div>
+                <div><i class="fa fa-credit-card"></i> <span tkey="paidRecently">Recent Payments</span>: <span id="yourPaid24h"></span> (last 24h), <span id="yourPaid7d"></span> (last week)</div>
                 <div><i class="fa fa-star"></i> <span>Round contribution</span>: <span id="yourRoundShareProportion"></span>%
                     <span id="slush_round_info"> (shares), <span id="yourRoundScoreProportion"></span>% (<a target="_blank" href="#payments">score</a>)</span></span></div>
                 <div><i class="fa fa-money"></i> <span tkey="payoutEstimate">Current Payout Estimate</span>: <span id="yourPayoutEstimate"></span></div>
@@ -232,6 +233,9 @@ function fetchAddressStats(longpoll){
 	    if (payoutEstimate < 0) payoutEstimate = 0;
 	    updateText('yourPayoutEstimate', getReadableCoins(payoutEstimate));
 	    
+            updateText('yourPaid24h', getReadableCoins(data.stats.payments_24h || 0));
+            updateText('yourPaid7d', getReadableCoins(data.stats.payments_7d || 0));
+
             renderPayments(data.payments);
 	    
             if (data.workers && data.workers.length > 0) {
